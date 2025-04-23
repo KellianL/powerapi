@@ -29,14 +29,12 @@
 
 import csv
 import os
+from datetime import datetime
 
 from powerapi.database.base_db import BaseDB, IterDB
 from powerapi.exception import PowerAPIException
-from powerapi.report.report import Report, CSV_HEADER_COMMON
+from powerapi.report.report import CSV_HEADER_COMMON, Report
 from powerapi.utils import utils
-
-# Array of field that will not be considered as a group
-COMMON_ROW = ['timestamp', 'sensor', 'target', 'socket', 'cpu']
 
 
 class CsvBadFilePathError(PowerAPIException):
@@ -65,8 +63,7 @@ class CsvIterDB(IterDB):
     """
 
     def __init__(self, db, filenames, report_type, stream_mode):
-        """
-        """
+        """ """
         super().__init__(db, report_type, stream_mode)
 
         self.filenames = filenames
@@ -74,34 +71,32 @@ class CsvIterDB(IterDB):
 
         # Add it in the tmp
         for filename in filenames:
-            self.tmp_read[filename] = {
-                'next_line': [],
-                'reader': None,
-                'file': None
-            }
+            self.tmp_read[filename] = {"next_line": [], "reader": None, "file": None}
 
         # Open all files with csv and read first line
         for filename in self.filenames:
             try:
-                self.tmp_read[filename]['file'] = open(filename, encoding='utf-8')
-                self.tmp_read[filename]['reader'] = csv.DictReader(self.tmp_read[filename]['file'])
+                self.tmp_read[filename]["file"] = open(filename, encoding="utf-8")
+                self.tmp_read[filename]["reader"] = csv.DictReader(
+                    self.tmp_read[filename]["file"]
+                )
             except FileNotFoundError as error:
                 raise CsvBadFilePathError(error) from error
-            self.tmp_read[filename]['next_line'] = self._next(filename)
+            self.tmp_read[filename]["next_line"] = self._next(filename)
 
             # Check common key
             for key in CSV_HEADER_COMMON:
-                if key not in self.tmp_read[filename]['next_line']:
+                if key not in self.tmp_read[filename]["next_line"]:
                     raise CsvBadCommonKeysError("Wrong columns keys")
 
         # Save the first timestamp
         if self.filenames:
-            self.saved_timestamp = utils.timestamp_to_datetime(
-                int(self.tmp_read[self.filenames[0]]['next_line']['timestamp']))
+            self.saved_timestamp = utils._extract_timestamp(
+                self.tmp_read[self.filenames[0]]["next_line"]["timestamp"]
+            )
 
     def __iter__(self):
-        """
-        """
+        """ """
         return self
 
     def _next(self, filename):
@@ -111,14 +106,14 @@ class CsvIterDB(IterDB):
         :param str filename: file name we want to read
         """
         try:
-            return next(self.tmp_read[filename]['reader'])
+            return next(self.tmp_read[filename]["reader"])
         except StopIteration:
             return None
 
     def _close_file(self):
         for filename in self.filenames:
-            if self.tmp_read[filename]['file'] is not None:
-                self.tmp_read[filename]['file'].close()
+            if self.tmp_read[filename]["file"] is not None:
+                self.tmp_read[filename]["file"].close()
 
     def __next__(self) -> Report:
         """
@@ -134,7 +129,7 @@ class CsvIterDB(IterDB):
             # While timestamp is lower or equal
             while True:
                 # Get the next line
-                row = self.tmp_read[path_file]['next_line']
+                row = self.tmp_read[path_file]["next_line"]
 
                 # If nothing more, break
                 if row is None:
@@ -145,8 +140,7 @@ class CsvIterDB(IterDB):
                     break
 
                 # Get the timestamp as datetime
-                row_timestamp = utils.timestamp_to_datetime(
-                    int(row['timestamp']))
+                row_timestamp = utils._extract_timestamp(row["timestamp"])
                 # If timestamp is higher, we stop here
                 if row_timestamp > current_timestamp:
                     if path_file == self.filenames[-1]:
@@ -154,19 +148,19 @@ class CsvIterDB(IterDB):
                     break  # move to next file
 
                 if row_timestamp < current_timestamp:
-                    self.tmp_read[path_file]['next_line'] = self._next(path_file)
+                    self.tmp_read[path_file]["next_line"] = self._next(path_file)
                     continue
 
                 if previous_target is not None:
-                    if row['target'] != previous_target:
+                    if row["target"] != previous_target:
                         break  # move to next file
                 else:
-                    previous_target = row['target']
+                    previous_target = row["target"]
 
                 # Else if it's the same, we merge
-                raw_data.append((path_file.split('/')[-1], row))
+                raw_data.append((path_file.split("/")[-1], row))
                 # Next line
-                self.tmp_read[path_file]['next_line'] = self._next(path_file)
+                self.tmp_read[path_file]["next_line"] = self._next(path_file)
 
         if not raw_data:
             self._close_file()
@@ -185,7 +179,13 @@ class CsvDB(BaseDB):
     a CsvDB instance can be define by its current path
     """
 
-    def __init__(self, report_type: type[Report], tags: list[str], current_path="/tmp/csvdbtest", files=[]):
+    def __init__(
+        self,
+        report_type: type[Report],
+        tags: list[str],
+        current_path="/tmp/csvdbtest",
+        files=[],
+    ):
         """
         :param current_path: Current path where read/write files
         """
@@ -195,11 +195,13 @@ class CsvDB(BaseDB):
         self.filenames = []
 
         #: (str): current path
-        self.current_path = current_path if current_path[-1] == '/' else current_path + '/'
+        self.current_path = (
+            current_path if current_path[-1] == "/" else current_path + "/"
+        )
 
         #: (int): allow to know if we read a new report, or the same
         #: current timestamp
-        self.saved_timestamp = utils.timestamp_to_datetime(0)
+        self.saved_timestamp = datetime.now()
         self.tags = tags
 
         self.add_files(files)
@@ -214,7 +216,7 @@ class CsvDB(BaseDB):
         :param filename: Path to file
         """
         # If absolute path
-        if filename[0] == '/':
+        if filename[0] == "/":
             self.filenames.append(filename)
         else:
             filename = self.current_path + filename
@@ -267,10 +269,12 @@ class CsvDB(BaseDB):
         os.makedirs(rep_path, exist_ok=True)
 
         for filename, values in data.items():
-            output_filename = f'{rep_path}/{filename}.csv'
+            output_filename = f"{rep_path}/{filename}.csv"
 
-            with open(output_filename, 'a+', encoding='utf-8') as csvfile:
-                expected_header = fixed_header + sorted(set(values[0].keys()) - set(fixed_header))
+            with open(output_filename, "a+", encoding="utf-8") as csvfile:
+                expected_header = fixed_header + sorted(
+                    set(values[0].keys()) - set(fixed_header)
+                )
                 header_exist = False
 
                 csvfile.seek(0)  # Go to beginning of file before reading
@@ -278,7 +282,9 @@ class CsvDB(BaseDB):
                 if reader.fieldnames:
                     header_exist = True
                     if reader.fieldnames != expected_header:
-                        raise HeaderAreNotTheSameError(f"Header are not the same in {output_filename}")
+                        raise HeaderAreNotTheSameError(
+                            f"Header are not the same in {output_filename}"
+                        )
 
                 writer = csv.DictWriter(csvfile, fieldnames=expected_header)
                 if not header_exist:

@@ -27,7 +27,7 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import datetime
+from datetime import datetime
 
 
 def timestamp_to_datetime(timestamp):
@@ -37,4 +37,21 @@ def timestamp_to_datetime(timestamp):
     :param int timestamp:
     :rtype: datetime.datetime
     """
-    return datetime.datetime.fromtimestamp(timestamp / 1000)
+    return datetime.fromtimestamp(timestamp / 1000)
+
+
+def _extract_timestamp(ts):
+    # Unix timestamp format (in milliseconds)
+    if isinstance(ts, int):
+        return datetime.fromtimestamp(ts / 1000)
+
+    # datetime object
+    if isinstance(ts, datetime):
+        return ts
+
+    if isinstance(ts, str):
+        try:
+            # ISO 8601 date format
+            return datetime.fromisoformat(ts)
+        except ValueError as e:
+            raise ValueError("timestamp format") from e
