@@ -32,22 +32,23 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Iterable
 from datetime import datetime
-from typing import NewType, Any
+from typing import Any, NewType
 from zlib import crc32
 
-from powerapi.exception import PowerAPIExceptionWithMessage, PowerAPIException
+from powerapi.exception import PowerAPIException, PowerAPIExceptionWithMessage
 from powerapi.message import Message
+from powerapi.utils import _extract_timestamp
 
-TIMESTAMP_KEY = 'timestamp'
-SENSOR_KEY = 'sensor'
-TARGET_KEY = 'target'
-METADATA_KEY = 'metadata'
-GROUPS_KEY = 'groups'
+TIMESTAMP_KEY = "timestamp"
+SENSOR_KEY = "sensor"
+TARGET_KEY = "target"
+METADATA_KEY = "metadata"
+GROUPS_KEY = "groups"
 
 CSV_HEADER_COMMON = [TIMESTAMP_KEY, SENSOR_KEY, TARGET_KEY]
-CsvLines = NewType('CsvLines', tuple[list[str], dict[str, str]])
+CsvLines = NewType("CsvLines", tuple[list[str], dict[str, str]])
 
-TAGS_NAME_TRANSLATION_TABLE = str.maketrans('.-/', '___')
+TAGS_NAME_TRANSLATION_TABLE = str.maketrans(".-/", "___")
 
 
 class BadInputData(PowerAPIExceptionWithMessage):
@@ -72,7 +73,13 @@ class Report(Message):
     Report abtract class.
     """
 
-    def __init__(self, timestamp: datetime, sensor: str, target: str, metadata: dict[str, Any] = {}):
+    def __init__(
+        self,
+        timestamp: datetime,
+        sensor: str,
+        target: str,
+        metadata: dict[str, Any] = {},
+    ):
         """
         Initialize a report using the given parameters.
         :param datetime timestamp: Timestamp
@@ -89,17 +96,19 @@ class Report(Message):
         self.dispatcher_report_id = None
 
     def __str__(self):
-        return f'{self.__class__.__name__}({self.timestamp}, {self.sensor}, {self.target}, {self.metadata})'
+        return f"{self.__class__.__name__}({self.timestamp}, {self.sensor}, {self.target}, {self.metadata})"
 
     def __repr__(self):
-        return f'{self.__class__.__name__}({self.timestamp}, {self.sensor}, {self.target}, {self.metadata})'
+        return f"{self.__class__.__name__}({self.timestamp}, {self.sensor}, {self.target}, {self.metadata})"
 
     def __eq__(self, other):
-        return (isinstance(other, type(self)) and
-                self.timestamp == other.timestamp and
-                self.sensor == other.sensor and
-                self.target == other.target and
-                self.metadata == other.metadata)
+        return (
+            isinstance(other, type(self))
+            and self.timestamp == other.timestamp
+            and self.sensor == other.sensor
+            and self.target == other.target
+            and self.metadata == other.metadata
+        )
 
     @staticmethod
     def to_json(report: Report) -> dict:
@@ -108,30 +117,14 @@ class Report(Message):
         """
         json = report.__dict__
         # sender_name and dispatcher_report_id are not used
-        json.pop('sender_name')
-        json.pop('dispatcher_report_id')
+        json.pop("sender_name")
+        json.pop("dispatcher_report_id")
 
         return json
 
     @staticmethod
     def _extract_timestamp(ts):
-        # Unix timestamp format (in milliseconds)
-        if isinstance(ts, int):
-            return datetime.fromtimestamp(ts / 1000)
-
-        # datetime object
-        if isinstance(ts, datetime):
-            return ts
-
-        if isinstance(ts, str):
-            try:
-                # ISO 8601 date format
-                return datetime.fromisoformat(ts)
-            except ValueError:
-                # Unix timestamp format (in milliseconds)
-                return datetime.fromtimestamp(int(ts) / 1000)
-
-        raise ValueError('Invalid timestamp format')
+        _extract_timestamp(ts)
 
     @staticmethod
     def create_empty_report():
@@ -151,15 +144,21 @@ class Report(Message):
         :param tags: Iterable object containing the tags name
         :return: Dictionary containing the input tag name as key and its sanitized version as value
         """
-        sanitized_tags = {tag: tag.translate(TAGS_NAME_TRANSLATION_TABLE) for tag in tags}
+        sanitized_tags = {
+            tag: tag.translate(TAGS_NAME_TRANSLATION_TABLE) for tag in tags
+        }
         conflict_count = Counter(sanitized_tags.values())
         return {
-            tag_orig: (tag_new if conflict_count[tag_new] == 1 else f'{tag_new}_{crc32(tag_orig.encode()):x}')
+            tag_orig: (
+                tag_new
+                if conflict_count[tag_new] == 1
+                else f"{tag_new}_{crc32(tag_orig.encode()):x}"
+            )
             for tag_orig, tag_new in sanitized_tags.items()
         }
 
     @staticmethod
-    def flatten_tags(tags: dict[str, Any], separator: str = '_') -> dict[str, Any]:
+    def flatten_tags(tags: dict[str, Any], separator: str = "_") -> dict[str, Any]:
         """
         Flatten nested dictionaries within a tags dictionary.
 
@@ -173,6 +172,9 @@ class Report(Message):
         :return: Flattened tags dict
         """
         return {
-            f"{pkey}{separator}{ckey}" if isinstance(pvalue, dict) else pkey: cvalue for pkey, pvalue in tags.items()
-            for ckey, cvalue in (pvalue.items() if isinstance(pvalue, dict) else {pkey: pvalue}.items())
+            f"{pkey}{separator}{ckey}" if isinstance(pvalue, dict) else pkey: cvalue
+            for pkey, pvalue in tags.items()
+            for ckey, cvalue in (
+                pvalue.items() if isinstance(pvalue, dict) else {pkey: pvalue}.items()
+            )
         }

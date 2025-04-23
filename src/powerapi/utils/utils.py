@@ -54,4 +54,4 @@ def _extract_timestamp(ts):
             # ISO 8601 date format
             return datetime.fromisoformat(ts)
         except ValueError as e:
-            raise ValueError("timestamp format") from e
+            raise ValueError("Invalid timestamp format") from e
